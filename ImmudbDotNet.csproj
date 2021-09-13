@@ -48,5 +48,15 @@
   <ItemGroup>
     <None Include="icon.png" Pack="true" PackagePath="" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Update="Protos\google\annotations.proto" Access="Internal" />
+    <Protobuf Update="Protos\google\any.proto" Access="Internal" />
+    <Protobuf Update="Protos\google\descriptor.proto" Access="Internal" />
+    <Protobuf Update="Protos\google\empty.proto" Access="Public" />
+    <Protobuf Update="Protos\google\http.proto" Access="Internal" />
+    <Protobuf Update="Protos\google\struct.proto" Access="Public" />
+    <Protobuf Update="Protos\schema.proto" Access="Public" />
+  </ItemGroup>
  
 </Project>

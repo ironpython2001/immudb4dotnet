@@ -339,6 +339,20 @@ namespace CodeNotary.ImmuDb
 
             return metadata;
         }
+        public SQLExecResult SQLExec(string sql)
+        {
+            SQLExecRequest sqlExecRequest = new SQLExecRequest();
+            sqlExecRequest.Sql = sql;
+            SQLExecResult sqlExecResult = this.client.SQLExec(sqlExecRequest, this.getSecurityHeader());
+            return sqlExecResult;
+        }
+        public SQLQueryResult SQLQuery(string sql)
+        {
+            SQLQueryRequest sqlQueryRequest = new SQLQueryRequest();
+            sqlQueryRequest.Sql = sql;
+            SQLQueryResult sqlQueryResult = this.client.SQLQuery(sqlQueryRequest, this.getSecurityHeader());
+            return sqlQueryResult;
+        }
 
         #region IDisposable Support
 
