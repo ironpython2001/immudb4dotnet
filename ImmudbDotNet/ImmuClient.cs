@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using CodeNotary.ImmuDb.ImmudbProto;
 using CodeNotary.ImmuDb.Roots;
@@ -67,14 +68,12 @@ namespace CodeNotary.ImmuDb
                 this.authToken = null;
             }
         }
-
         public async Task<IEnumerable<string>> GetDatabasesAsync()
         {
             var databases = await this.client.DatabaseListAsync(this.emptyArgument, this.getSecurityHeader());
 
             return databases.Databases.Select(db => db.Databasename);
         }
-
         public async Task UseDatabaseAsync(string databaseName, bool createIfNotExists = true)
         {
             var databases = await this.GetDatabasesAsync();
@@ -99,14 +98,12 @@ namespace CodeNotary.ImmuDb
 
             this.authToken = result.Token;
         }
-
         public async Task CreateDatabaseAsync(string databaseName)
         {
             await this.client.CreateDatabaseAsync(new Database() { Databasename = databaseName }, this.getSecurityHeader());
 
             this.logger.LogInformation($"Created database {databaseName}");
         }
-
         public void Close()
         {
             try
@@ -137,7 +134,6 @@ namespace CodeNotary.ImmuDb
 
             this.logger.LogInformation($"Connection closed");
         }
-
         public async Task SetAsync(string key, string value)
         {
             var content = new Content()
@@ -148,12 +144,10 @@ namespace CodeNotary.ImmuDb
 
             await this.SetRawAsync(key, content.ToByteArray());
         }
-
         public async Task SetAsync<T>(string key, T value) where T : class
         {
             await this.SetAsync(key, JsonConvert.SerializeObject(value));
         }
-
         public async Task SetRawAsync(string key, byte[] value)
         {
             var request = new KeyValue()
@@ -164,7 +158,6 @@ namespace CodeNotary.ImmuDb
 
             await this.client.SetAsync(request, this.getSecurityHeader());
         }
-
         public bool TryGet(string key, out string value)
         {
             try
@@ -179,7 +172,6 @@ namespace CodeNotary.ImmuDb
                 return false;
             }
         }
-
         public bool TryGet<T>(string key, out T value) where T : class
         {
             if (this.TryGet(key, out var json))
@@ -193,7 +185,6 @@ namespace CodeNotary.ImmuDb
                 return false;
             }
         }
-
         public async Task<string> GetAsync(string key)
         {
             var result = await this.GetRawAsync(key);
@@ -209,14 +200,12 @@ namespace CodeNotary.ImmuDb
                 return ByteString.CopyFrom(result).ToStringUtf8();
             }
         }
-
         public async Task<T> GetAsync<T>(string key) where T : class
         {
             var json = await this.GetAsync(key);
 
             return JsonConvert.DeserializeObject<T>(json);
         }
-
         public async Task<byte[]> GetRawAsync(string key)
         {
             var request = new Key()
@@ -228,7 +217,6 @@ namespace CodeNotary.ImmuDb
 
             return result.Value.ToByteArray();
         }
-
         public async Task<string> SafeGetAsync(string key)
         {
             var result = await this.SafeGetRawAsync(key);
@@ -244,7 +232,6 @@ namespace CodeNotary.ImmuDb
                 return ByteString.CopyFrom(result).ToStringUtf8();
             }
         }
-
         public async Task<byte[]> SafeGetRawAsync(string key)
         {
             var root = this.getActiveDatabaseRoot();
@@ -263,18 +250,27 @@ namespace CodeNotary.ImmuDb
 
             return result.Item.Value.ToByteArray();
         }
-
         public async Task SafeSetAsync(string key, string value)
         {
+            
             var content = new Content()
             {
                 Timestamp = (ulong)DateTime.UtcNow.ToTimestamp().Seconds,
                 Payload = ByteString.CopyFromUtf8(value)
             };
-
+            
+            //byte[] k = { 104, 101, 108, 108, 111 };
             await this.SafeSetRawAsync(key, content.ToByteArray());
-        }
 
+            //byte[] v = { 104, 101, 108, 108, 111 };
+            //var s = Encoding.ASCII.GetString(k);
+            //var kv = new KeyValue()
+            //{
+            //    Key = ByteString.Empty,
+            //    Value = ByteString.CopyFrom(v)
+            //};
+            //await this.client.SetAsync(kv, this.getSecurityHeader());
+        }
         public async Task SafeSetRawAsync(string key, byte[] value)
         {
             var root = this.getActiveDatabaseRoot();
@@ -303,17 +299,28 @@ namespace CodeNotary.ImmuDb
 
             this.rootHolder.SetRoot(this.activeDatabaseName, new Root() { Root_ = proof.Root, Index = proof.At });
         }
-
         public byte[] GetRoots()
         {
             return this.rootHolder.ToByteArray();
         }
-
         public void InitRoots(byte[] roots)
         {
             this.rootHolder.FromByteArray(roots);
         }
-
+        public SQLExecResult SQLExec(string sql)
+        {
+            var sqlExecRequest = new SQLExecRequest();
+            sqlExecRequest.Sql = sql;
+            var sqlExecResult = this.client.SQLExec(sqlExecRequest, this.getSecurityHeader());
+            return sqlExecResult;
+        }
+        public SQLQueryResult SQLQuery(string sql)
+        {
+            var sqlQueryRequest = new SQLQueryRequest();
+            sqlQueryRequest.Sql = sql;
+            var sqlQueryResult = this.client.SQLQuery(sqlQueryRequest, this.getSecurityHeader());
+            return sqlQueryResult;
+        }
         private Root getActiveDatabaseRoot()
         {
             if (this.rootHolder.GetRoot(this.activeDatabaseName) == null)
@@ -325,7 +332,6 @@ namespace CodeNotary.ImmuDb
 
             return this.rootHolder.GetRoot(this.activeDatabaseName);
         }
-
         private Metadata getSecurityHeader()
         {
             if (string.IsNullOrEmpty(this.authToken))
@@ -338,20 +344,6 @@ namespace CodeNotary.ImmuDb
             metadata.Add("authorization", "Bearer " + this.authToken);
 
             return metadata;
-        }
-        public SQLExecResult SQLExec(string sql)
-        {
-            SQLExecRequest sqlExecRequest = new SQLExecRequest();
-            sqlExecRequest.Sql = sql;
-            SQLExecResult sqlExecResult = this.client.SQLExec(sqlExecRequest, this.getSecurityHeader());
-            return sqlExecResult;
-        }
-        public SQLQueryResult SQLQuery(string sql)
-        {
-            SQLQueryRequest sqlQueryRequest = new SQLQueryRequest();
-            sqlQueryRequest.Sql = sql;
-            SQLQueryResult sqlQueryResult = this.client.SQLQuery(sqlQueryRequest, this.getSecurityHeader());
-            return sqlQueryResult;
         }
 
         #region IDisposable Support

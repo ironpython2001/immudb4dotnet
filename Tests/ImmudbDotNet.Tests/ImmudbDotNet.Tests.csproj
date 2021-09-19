@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\ImmudbDotNet.csproj" />
+    <ProjectReference Include="..\..\ImmudbDotNet\ImmudbDotNet.csproj" />
   </ItemGroup>
 
 </Project>
