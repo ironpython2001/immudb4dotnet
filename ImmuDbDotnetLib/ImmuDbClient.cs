@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using CodeNotary.ImmuDb.ImmudbProto;
 using Google.Protobuf;
@@ -151,6 +152,32 @@ namespace ImmuDbDotnetLib
 
             return JsonConvert.DeserializeObject<T>(json);
         }
+
+        //public async Task StreamSet()
+        //{
+        //    var chunk = new Chunk()
+        //    {
+        //        Content = 
+        //    };
+        //    this.client.streamSet(null).RequestStream.WriteAsync()
+        //}
+
+        public async Task StreamGet(string key)
+        {
+            var kr = new KeyRequest()
+            {
+                Key = ByteString.CopyFromUtf8(key)
+            };
+            var cts = new CancellationTokenSource(15000); //15 seconds
+            
+            var chunk = this.client.streamGet(kr,this.securityHeader,cancellationToken:cts.Token);
+            while (await chunk.ResponseStream.MoveNext(cts.Token))
+            {
+                var bs = chunk.ResponseStream.Current.Content;
+                Console.WriteLine(bs.ToStringUtf8());
+            }
+        }
+
         public void Close()
         {
             try
@@ -174,4 +201,19 @@ namespace ImmuDbDotnetLib
         }
     }
 }
+
+
+
+
+//https://eddyf1xxxer.medium.com/bi-directional-streaming-and-introduction-to-grpc-on-asp-net-core-3-0-part-2-d9127a58dcdb
+//https://referbruv.com/blog/posts/implementing-stream-based-communication-with-grpc-and-aspnet-core
+//https://www.codemartini.com/grpc-net-core-sample-with-stream-call/
+//https://stackoverflow.com/questions/69029481/grpc-web-supporting-client-streaming-in-net
+//https://www.c-sharpcorner.com/chapters/
+//https://medium.com/@ricardo.torres89.rt/asynchronous-data-streaming-with-net-core-3-0-grpc-and-iasyncenumerable-d970b53177e
+//https://stackoverflow.com/questions/15067865/how-to-use-the-cancellationtoken-property
+//https://www.browserling.com/tools/base64-decode
+//http://string-functions.com/encodedecode.aspx
+//https://www.webatic.com/encoding-explorer
+
 

@@ -18,8 +18,9 @@ namespace ImmuDbClientDemoApp
                 await client.UseDatabaseAsync("defaultdb", false);
                 //https://docs.immudb.io/master/quickstart.html#basic-operations-with-immuclient
                 //ar s = await client.GetAsync("balance");
-                await client.SetAsync("balance", 100.ToString());
+                await client.SetAsync("balance", "100");
                 var s = await client.GetAsync("balance");
+                await client.StreamGet("balance");
 
 
                 //await client.SafeSetAsync("balance", 9001.ToString());
