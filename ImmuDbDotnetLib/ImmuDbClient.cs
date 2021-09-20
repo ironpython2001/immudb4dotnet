@@ -26,7 +26,7 @@ namespace ImmuDbDotnetLib
         private string authToken;
         private string activeDatabaseName = "defaultdb";
 
-        private Metadata securityHeader
+        public Metadata AuthHeader
         {
             get
             {
@@ -44,13 +44,12 @@ namespace ImmuDbDotnetLib
         {
             this.channel = new Channel(address, port, ChannelCredentials.Insecure);
             this.client = new ImmuService.ImmuServiceClient(this.channel);
-            
         }
 
-       
-        public async Task<(bool IsSuccess,string Warning)> LoginAsync(string user, string password, string databaseName = null)
+
+        public async Task<(bool IsSuccess, string Warning)> LoginAsync(string user, string password, string databaseName = null)
         {
-            (bool IsSuccess, string Warning) result = (false,string.Empty);
+            (bool IsSuccess, string Warning) result = (false, string.Empty);
             var request = new LoginRequest()
             {
                 User = ByteString.CopyFromUtf8(user),
@@ -65,7 +64,7 @@ namespace ImmuDbDotnetLib
             {
                 result.IsSuccess = true;
                 result.Warning = response.Warning.ToStringUtf8();
-                
+
             }
             if (!string.IsNullOrEmpty(databaseName))
             {
@@ -92,7 +91,7 @@ namespace ImmuDbDotnetLib
                 }
             }
 
-            var result = await this.client.UseDatabaseAsync(new Database() { DatabaseName = databaseName }, this.securityHeader);
+            var result = await this.client.UseDatabaseAsync(new Database() { DatabaseName = databaseName }, this.AuthHeader);
 
             this.activeDatabaseName = databaseName;
 
@@ -102,7 +101,7 @@ namespace ImmuDbDotnetLib
 
         public async Task<IEnumerable<string>> GetDatabasesAsync()
         {
-            var databases = await this.client.DatabaseListAsync(new Empty(), this.securityHeader);
+            var databases = await this.client.DatabaseListAsync(new Empty(), this.AuthHeader);
             return databases.Databases.Select(db => db.DatabaseName);
         }
 
@@ -110,14 +109,14 @@ namespace ImmuDbDotnetLib
         {
             if (this.client != null && !string.IsNullOrEmpty(this.authToken))
             {
-                await this.client.LogoutAsync(new Empty(), this.securityHeader);
+                await this.client.LogoutAsync(new Empty(), this.AuthHeader);
                 this.authToken = null;
             }
         }
 
         public async Task CreateDatabaseAsync(string databaseName)
         {
-            await this.client.CreateDatabaseAsync(new Database() { DatabaseName = databaseName }, this.securityHeader);
+            await this.client.CreateDatabaseAsync(new Database() { DatabaseName = databaseName }, this.AuthHeader);
         }
 
         public async Task<ulong> SetAsync(string key, string value)
@@ -125,14 +124,10 @@ namespace ImmuDbDotnetLib
             var request = new SetRequest();
             request.KVs.Add(new KeyValue()
             {
-                //Key = ByteString.CopyFrom(Encoding.ASCII.GetBytes(key)), 
-                //Value = ByteString.CopyFrom(Encoding.ASCII.GetBytes(value))
                 Key = ByteString.CopyFromUtf8(key),
                 Value = ByteString.CopyFromUtf8(value)
             });
-
-            var reply = await this.client.SetAsync(request, this.securityHeader);
-
+            var reply = await this.client.SetAsync(request, this.AuthHeader);
             return reply.Id;
         }
 
@@ -142,7 +137,7 @@ namespace ImmuDbDotnetLib
             {
                 Key = ByteString.CopyFromUtf8(key)
             };
-            var reply = await this.client.GetAsync(request, this.securityHeader);
+            var reply = await this.client.GetAsync(request, this.AuthHeader);
             return reply.Value.ToStringUtf8();
         }
 
@@ -153,24 +148,54 @@ namespace ImmuDbDotnetLib
             return JsonConvert.DeserializeObject<T>(json);
         }
 
-        //public async Task StreamSet()
-        //{
-        //    var chunk = new Chunk()
-        //    {
-        //        Content = 
-        //    };
-        //    this.client.streamSet(null).RequestStream.WriteAsync()
-        //}
+        public async Task GetAll(List<string> keys)
+        {
+            var klr = new KeyListRequest();
+            keys.ForEach(key => klr.Keys.Add(ByteString.CopyFromUtf8(key)));
+            var cts = new CancellationTokenSource(15000);
+            var entries = await this.client.GetAllAsync(klr, this.AuthHeader, null, cts.Token);
+            foreach (var e in entries.Entries_)
+            {
+                Console.WriteLine(e.Tx);
+                Console.WriteLine(e.Key.ToStringUtf8());
+                Console.WriteLine(e.Value.ToStringUtf8());
+            }
+        }
 
-        public async Task StreamGet(string key)
+        public async Task UploadFile(string key, FileInfo fileInfo)
+        {
+            var mdh = this.AuthHeader;
+
+            using (var cts = new CancellationTokenSource())
+            {
+                var fileBytes = File.ReadAllBytes(fileInfo.FullName);
+                using var reader = new StreamReader(fileInfo.FullName);
+                while ((!reader.EndOfStream) && (!cts.Token.IsCancellationRequested))
+                {
+                    var line = reader.ReadLine();
+                    var chunk = new Chunk()
+                    {
+                        Content = ByteString.CopyFromUtf8(line)
+                    };
+
+                    mdh.Add(fileInfo.Name, fileBytes);
+                    var ss = this.client.streamSet(mdh, null, cts.Token);
+
+                    await ss.RequestStream.WriteAsync(chunk);
+                }
+                await this.client.streamSet(mdh, null, cts.Token).RequestStream.CompleteAsync();
+            }
+        }
+
+        public async Task DownloadFile(FileInfo fileInfo)
         {
             var kr = new KeyRequest()
             {
-                Key = ByteString.CopyFromUtf8(key)
+                Key = ByteString.CopyFromUtf8(fileInfo.Name)
             };
             var cts = new CancellationTokenSource(15000); //15 seconds
-            
-            var chunk = this.client.streamGet(kr,this.securityHeader,cancellationToken:cts.Token);
+
+            var chunk = this.client.streamGet(kr, this.AuthHeader, cancellationToken: cts.Token);
             while (await chunk.ResponseStream.MoveNext(cts.Token))
             {
                 var bs = chunk.ResponseStream.Current.Content;
@@ -184,7 +209,7 @@ namespace ImmuDbDotnetLib
             {
                 if (this.client != null && !string.IsNullOrEmpty(this.authToken))
                 {
-                    this.client.Logout(new Empty(), this.securityHeader);
+                    this.client.Logout(new Empty(), this.AuthHeader);
                     this.authToken = null;
                 }
 
@@ -205,15 +230,6 @@ namespace ImmuDbDotnetLib
 
 
 
-//https://eddyf1xxxer.medium.com/bi-directional-streaming-and-introduction-to-grpc-on-asp-net-core-3-0-part-2-d9127a58dcdb
-//https://referbruv.com/blog/posts/implementing-stream-based-communication-with-grpc-and-aspnet-core
-//https://www.codemartini.com/grpc-net-core-sample-with-stream-call/
-//https://stackoverflow.com/questions/69029481/grpc-web-supporting-client-streaming-in-net
-//https://www.c-sharpcorner.com/chapters/
-//https://medium.com/@ricardo.torres89.rt/asynchronous-data-streaming-with-net-core-3-0-grpc-and-iasyncenumerable-d970b53177e
-//https://stackoverflow.com/questions/15067865/how-to-use-the-cancellationtoken-property
-//https://www.browserling.com/tools/base64-decode
-//http://string-functions.com/encodedecode.aspx
-//https://www.webatic.com/encoding-explorer
+
 
 
