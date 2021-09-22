@@ -157,7 +157,7 @@ namespace ImmuDbDotnetLib
             return result;
         }
 
-        public async Task VerifiedSet(string key, string value)
+        public async Task<Pocos.VerifiableTx> VerifiedSet(string key, string value)
         {
             var mdh = this.AuthHeader;
             var request = new VerifiableSetRequest();
@@ -169,8 +169,9 @@ namespace ImmuDbDotnetLib
             request.SetRequest = new SetRequest();
             request.SetRequest.KVs.Add(kv);
             using var cts = new CancellationTokenSource();
-            var result = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
-            
+            var verifiableTx = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
+            var json = verifiableTx.Tx.ToString();
+            return JsonConvert.DeserializeObject<Pocos.VerifiableTx>(json);
         }
 
         public async Task<List<string>> VerifiedGet(string key)
@@ -259,6 +260,8 @@ namespace ImmuDbDotnetLib
 
         }
     }
+
+
 }
 
 
