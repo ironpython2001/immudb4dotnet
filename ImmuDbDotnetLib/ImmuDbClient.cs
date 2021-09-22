@@ -133,11 +133,12 @@ namespace ImmuDbDotnetLib
 
         public async Task<string> GetAsync(string key)
         {
+            var mdh = this.AuthHeader;
             var request = new KeyRequest()
             {
                 Key = ByteString.CopyFromUtf8(key)
             };
-            var reply = await this.client.GetAsync(request, this.AuthHeader);
+            var reply = await this.client.GetAsync(request, mdh);
             return reply.Value.ToStringUtf8();
         }
 
@@ -148,54 +149,77 @@ namespace ImmuDbDotnetLib
             return JsonConvert.DeserializeObject<T>(json);
         }
 
-        public async Task GetAll(List<string> keys)
+        public async Task<List<(ulong Tx, string Key, string Value)>> GetAll(List<string> keys)
         {
+            var result = new List<(ulong Tx, string Key, string Value)>();
             var klr = new KeyListRequest();
             keys.ForEach(key => klr.Keys.Add(ByteString.CopyFromUtf8(key)));
             var cts = new CancellationTokenSource(15000);
             var entries = await this.client.GetAllAsync(klr, this.AuthHeader, null, cts.Token);
             foreach (var e in entries.Entries_)
             {
-                Console.WriteLine(e.Tx);
-                Console.WriteLine(e.Key.ToStringUtf8());
-                Console.WriteLine(e.Value.ToStringUtf8());
+                result.Add((e.Tx, e.Key.ToStringUtf8(), e.Value.ToStringUtf8()));
             }
+            return result;
         }
 
-        public async Task UploadFile(string key, FileInfo fileInfo)
+        public List<string> VerifiedGet(string key)
+        {
+            var result = new List<string>();
+            var mdh = this.AuthHeader;
+            var request = new VerifiableGetRequest()
+            {
+                KeyRequest = new KeyRequest() { Key = ByteString.CopyFromUtf8(key) },
+            };
+            using var cts = new CancellationTokenSource();
+            var verifiableTx = this.client.VerifiableGet(request, mdh, null, cts.Token).VerifiableTx;
+            var entriesEnumerator = verifiableTx.Tx.Entries.GetEnumerator();
+            while (entriesEnumerator.MoveNext())
+            {
+                //Console.WriteLine(entriesEnumerator.Current);
+                result.Add(entriesEnumerator.Current.HValue.ToStringUtf8());
+            }
+            return result;
+        }
+            
+
+        public async Task UploadFile(FileInfo fileInfo)
         {
             var mdh = this.AuthHeader;
 
-            using (var cts = new CancellationTokenSource())
+            using var cts = new CancellationTokenSource();
+            var fileBytes = File.ReadAllBytes(fileInfo.FullName);
+            using var reader = new StreamReader(fileInfo.FullName);
+            var chunkNo = 0;
+            while ((!reader.EndOfStream) && (!cts.Token.IsCancellationRequested))
             {
-                var fileBytes = File.ReadAllBytes(fileInfo.FullName);
-                using var reader = new StreamReader(fileInfo.FullName);
-                while ((!reader.EndOfStream) && (!cts.Token.IsCancellationRequested))
+                var line = reader.ReadLine();
+                var chunk = new Chunk()
                 {
-                    var line = reader.ReadLine();
-                    var chunk = new Chunk()
-                    {
-                        Content = ByteString.CopyFromUtf8(line)
-                    };
+                    Content = ByteString.CopyFromUtf8(line)
+                };
+                chunkNo++;
+                var entry = new Metadata.Entry(fileInfo.Name, $"{chunkNo}");
+                mdh.Add(entry);
+                //mdh.Add(fileInfo.Name, fileBytes);
+                var ss = this.client.streamSet(mdh, null, cts.Token);
 
-                    mdh.Add(fileInfo.Name, fileBytes);
-                    var ss = this.client.streamSet(mdh, null, cts.Token);
-
-                    await ss.RequestStream.WriteAsync(chunk);
-                }
-                await this.client.streamSet(mdh, null, cts.Token).RequestStream.CompleteAsync();
+                await ss.RequestStream.WriteAsync(chunk);
             }
+            await this.client.streamSet(mdh, null, cts.Token).RequestStream.CompleteAsync();
         }
 
         public async Task DownloadFile(FileInfo fileInfo)
         {
+            var mdh = this.AuthHeader;
+            mdh.Add(new Metadata.Entry(fileInfo.Name, $"1"));
             var kr = new KeyRequest()
             {
                 Key = ByteString.CopyFromUtf8(fileInfo.Name)
             };
             var cts = new CancellationTokenSource(15000); //15 seconds
 
-            var chunk = this.client.streamGet(kr, this.AuthHeader, cancellationToken: cts.Token);
+            var chunk = this.client.streamGet(kr, mdh, cancellationToken: cts.Token);
             while (await chunk.ResponseStream.MoveNext(cts.Token))
             {
                 var bs = chunk.ResponseStream.Current.Content;

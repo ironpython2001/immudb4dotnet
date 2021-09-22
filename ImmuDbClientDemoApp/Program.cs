@@ -5,6 +5,7 @@ using ImmuDbDotnetLib;
 using CodeNotary.ImmuDb.ImmudbProto;
 using System.IO;
 using System.Collections.Generic;
+using System.Text;
 
 namespace ImmuDbClientDemoApp
 {
@@ -12,8 +13,8 @@ namespace ImmuDbClientDemoApp
     {
         public static async Task Main(string[] args)
         {
-            var client = new  ImmuDbClient();
-            var result = await client.LoginAsync("immudb","immudb");
+            var client = new ImmuDbClient();
+            var result = await client.LoginAsync("immudb", "immudb");
             if (result.IsSuccess)
             {
 
@@ -21,9 +22,17 @@ namespace ImmuDbClientDemoApp
                 //https://docs.immudb.io/master/quickstart.html#basic-operations-with-immuclient
                 await client.SetAsync("balance", "100");
                 var s = await client.GetAsync("balance");
-                await client.GetAll(new List<string> { "balance" });
-                var fi = new FileInfo("favorites.txt");
-                await client.UploadFile("adsf",fi);
+                client.VerifiedGet("balance");
+                var result2= await client.GetAll(new List<string> { "balance" });
+                foreach (var res in result2)
+                {
+                    Console.WriteLine(res.Tx);
+                }
+
+
+                var fi = new FileInfo("sample.txt");
+                await client.UploadFile(fi);
+                //var s2 = await client.GetAsync(fi.Name);
                 await client.DownloadFile(fi);
                 //await client.SafeSetAsync("balance", 9001.ToString());
 
