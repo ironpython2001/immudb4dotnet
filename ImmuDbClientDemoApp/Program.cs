@@ -22,7 +22,9 @@ namespace ImmuDbClientDemoApp
                 //https://docs.immudb.io/master/quickstart.html#basic-operations-with-immuclient
                 await client.SetAsync("balance", "100");
                 var s = await client.GetAsync("balance");
-                client.VerifiedGet("balance");
+                await client.VerifiedSet("balance","100");
+                await client.VerifiedGet("balance");
+
                 var result2= await client.GetAll(new List<string> { "balance" });
                 foreach (var res in result2)
                 {

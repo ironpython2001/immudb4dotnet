@@ -2,18 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeNotary.ImmuDb.ImmudbProto;
 using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Newtonsoft.Json;
 using Empty = Google.Protobuf.WellKnownTypes.Empty;
 
@@ -163,7 +157,23 @@ namespace ImmuDbDotnetLib
             return result;
         }
 
-        public List<string> VerifiedGet(string key)
+        public async Task VerifiedSet(string key, string value)
+        {
+            var mdh = this.AuthHeader;
+            var request = new VerifiableSetRequest();
+            var kv = new KeyValue()
+            {
+                Key = ByteString.CopyFromUtf8(key),
+                Value = ByteString.CopyFromUtf8(value)
+            };
+            request.SetRequest = new SetRequest();
+            request.SetRequest.KVs.Add(kv);
+            using var cts = new CancellationTokenSource();
+            var result = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
+            
+        }
+
+        public async Task<List<string>> VerifiedGet(string key)
         {
             var result = new List<string>();
             var mdh = this.AuthHeader;
@@ -172,8 +182,8 @@ namespace ImmuDbDotnetLib
                 KeyRequest = new KeyRequest() { Key = ByteString.CopyFromUtf8(key) },
             };
             using var cts = new CancellationTokenSource();
-            var verifiableTx = this.client.VerifiableGet(request, mdh, null, cts.Token).VerifiableTx;
-            var entriesEnumerator = verifiableTx.Tx.Entries.GetEnumerator();
+            var response = await this.client.VerifiableGetAsync(request, mdh, null, cts.Token);
+            var entriesEnumerator = response.VerifiableTx.Tx.Entries.GetEnumerator();
             while (entriesEnumerator.MoveNext())
             {
                 //Console.WriteLine(entriesEnumerator.Current);
@@ -181,7 +191,7 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
-            
+
 
         public async Task UploadFile(FileInfo fileInfo)
         {

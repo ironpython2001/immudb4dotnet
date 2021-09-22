@@ -17,7 +17,7 @@ namespace ImmuDbDotnetLib
             T result = new T();
             if (!String.IsNullOrWhiteSpace(messageBase64))
             {
-                if (messageBase64.StartsWith("\"") &&  messageBase64.Length > 2)
+                if (messageBase64.StartsWith("\"") && messageBase64.Length > 2)
                 {
                     messageBase64 = messageBase64.Substring(1, messageBase64.Length - 2);
                 }
