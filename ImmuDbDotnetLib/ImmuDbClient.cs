@@ -1,19 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Security.Authentication;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeNotary.ImmuDb.ImmudbProto;
+using FluentValidation;
 using Google.Protobuf;
 using Grpc.Core;
-using Newtonsoft.Json;
-using ImmuDbDotnetLib.Validators;
-using Empty = Google.Protobuf.WellKnownTypes.Empty;
-using FluentValidation;
 using ImmuDbDotnetLib.Extensions;
+using ImmuDbDotnetLib.Validators;
+using Newtonsoft.Json;
+using Empty = Google.Protobuf.WellKnownTypes.Empty;
 
 namespace ImmuDbDotnetLib
 {
