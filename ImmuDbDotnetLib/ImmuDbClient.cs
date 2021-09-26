@@ -15,12 +15,13 @@ using Empty = Google.Protobuf.WellKnownTypes.Empty;
 
 namespace ImmuDbDotnetLib
 {
-    public class ImmuDbClient
+    public class ImmuDbClient : IDisposable
     {
         private readonly Channel channel;
         private readonly ImmuService.ImmuServiceClient client;
         private string authToken;
         private string activeDatabaseName = "defaultdb";
+        private bool disposedValue;
 
         public Metadata AuthHeader
         {
@@ -214,10 +215,6 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
-
-
-
-
         public void Close()
         {
             try
@@ -235,11 +232,37 @@ namespace ImmuDbDotnetLib
             }
             catch (Exception ex)
             {
-                throw;
+                //catch all when we called it from dispose
+                if (!this.disposedValue)
+                {
+                    throw;
+                }
+                else
+                {
+                    throw;
+                }
             }
-
         }
 
+        protected virtual void Dispose(bool _disposing)
+        {
+            if (!this.disposedValue)
+            {
+                this.disposedValue = true;
+                this.Close();
+            }
+        }
+
+        ~ImmuDbClient()
+        {
+            this.Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
         //public async Task UploadFile(FileInfo fileInfo)
         //{
         //    var mdh = this.AuthHeader;
