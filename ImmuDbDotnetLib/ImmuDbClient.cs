@@ -122,18 +122,54 @@ namespace ImmuDbDotnetLib
             }
         }
 
-        public async Task LogoutAsync()
+        public async Task<Pocos.Status> LogoutAsync()
         {
-            if (this.client != null && !string.IsNullOrEmpty(this.authToken))
+            try
             {
-                await this.client.LogoutAsync(new Empty(), this.AuthHeader);
-                this.authToken = null;
+                if (this.client != null && !string.IsNullOrEmpty(this.authToken))
+                {
+                    await this.client.LogoutAsync(new Empty(), this.AuthHeader);
+                    this.authToken = null;
+                }
+                return new Pocos.Status
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+            }
+            catch (RpcException ex)
+            {
+                return new Pocos.Status
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
             }
         }
 
-        public async Task CreateDatabaseAsync(string databaseName)
+        public async Task<Pocos.Status> CreateDatabaseAsync(string databaseName)
         {
-            await this.client.CreateDatabaseAsync(new Database() { DatabaseName = databaseName }, this.AuthHeader);
+            try
+            {
+                await this.client.CreateDatabaseAsync(new Database()
+                {
+                    DatabaseName = databaseName
+                },
+                this.AuthHeader);
+                return new Pocos.Status
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+            }
+            catch (RpcException ex)
+            {
+                return new Pocos.Status
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+            }
         }
 
         public async Task<ulong> SetAsync(string key, string value)
