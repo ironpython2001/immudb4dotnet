@@ -149,6 +149,9 @@ namespace ImmuDbDotnetLib
 
         public async Task<Pocos.Status> CreateDatabaseAsync(string databaseName)
         {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(databaseName);
+
             try
             {
                 await this.client.CreateDatabaseAsync(new Database()
@@ -172,16 +175,41 @@ namespace ImmuDbDotnetLib
             }
         }
 
-        public async Task<ulong> SetAsync(string key, string value)
+        public async Task<(Pocos.Status status, ulong? Id)> SetAsync(string key, string value)
         {
-            var request = new SetRequest();
-            request.KVs.Add(new KeyValue()
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(key);
+            validator.ValidateAndThrow(value);
+
+            (Pocos.Status status, ulong? Id) result;
+
+            try
             {
-                Key = ByteString.CopyFromUtf8(key),
-                Value = ByteString.CopyFromUtf8(value)
-            });
-            var reply = await this.client.SetAsync(request, this.AuthHeader);
-            return reply.Id;
+                var request = new SetRequest();
+                request.KVs.Add(new KeyValue()
+                {
+                    Key = ByteString.CopyFromUtf8(key),
+                    Value = ByteString.CopyFromUtf8(value)
+                });
+                var reply = await this.client.SetAsync(request, this.AuthHeader);
+
+                result.status = new Pocos.Status
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+                result.Id= reply.Id;
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.Status
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.Id = null;
+            }
+            return result;
         }
 
         public async Task<string> GetAsync(string key)
