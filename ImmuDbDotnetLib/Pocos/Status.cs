@@ -2,7 +2,7 @@
 {
     public class Status
     {
-        public bool IsSuccess
+        public StatusCode StatusCode
         {
             get; set;
         }

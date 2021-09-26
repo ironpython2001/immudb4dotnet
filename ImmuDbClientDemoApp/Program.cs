@@ -17,12 +17,14 @@ namespace ImmuDbClientDemoApp
             var loginRequest = new Pocos.LoginRequest() { User = "immudb", Password = "immudb" };
             var loginResponse = await client.LoginAsync(loginRequest);
 
-            WriteLine(loginResponse.IsSuccess);
+            WriteLine(loginResponse.StatusCode);
             WriteLine(loginResponse.Detail);
 
             var useDatabaseResponse= await client.UseDatabaseAsync("defaultdb");
-            WriteLine(useDatabaseResponse.IsSuccess);
+            WriteLine(useDatabaseResponse.StatusCode);
             WriteLine(useDatabaseResponse.Detail);
+
+            var res1 = await client.DatabaseListAsync();
 
             //https://docs.immudb.io/master/quickstart.html#basic-operations-with-immuclient
             await client.SetAsync("balance", "100");

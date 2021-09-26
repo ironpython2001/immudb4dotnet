@@ -9,4 +9,10 @@
     <ProjectReference Include="..\ImmuDbDotnetLib\ImmuDbDotnetLib.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="sample.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -13,6 +13,7 @@ using Newtonsoft.Json;
 using ImmuDbDotnetLib.Validators;
 using Empty = Google.Protobuf.WellKnownTypes.Empty;
 using FluentValidation;
+using ImmuDbDotnetLib.Extensions;
 
 namespace ImmuDbDotnetLib
 {
@@ -48,12 +49,12 @@ namespace ImmuDbDotnetLib
             this.client = new ImmuService.ImmuServiceClient(this.channel);
         }
 
-        public async Task<Pocos.LoginResponse> LoginAsync(Pocos.LoginRequest request)
+        public async Task<Pocos.Status> LoginAsync(Pocos.LoginRequest request)
         {
             var validator = new LoginRequestValidator();
             validator.ValidateAndThrow(request);
 
-            var response = new Pocos.LoginResponse();
+            var response = new Pocos.Status();
             try
             {
                 var rpcRequest = new LoginRequest()
@@ -68,30 +69,24 @@ namespace ImmuDbDotnetLib
 
                 if (!rpcResponse.Warning.IsEmpty)
                 {
-                    response.Status = new Pocos.Status()
-                    {
-                        IsSuccess = true,
-                        Detail = rpcResponse.Warning.ToStringUtf8()
-                    };
+                    response.StatusCode = Pocos.StatusCode.OK;
+                    response.Detail = rpcResponse.Warning.ToStringUtf8();
                 }
             }
             catch (RpcException ex)
             {
-                response.Status = new Pocos.Status()
-                {
-                    IsSuccess = false,
-                    Detail = ex.Status.Detail
-                };
+                response.StatusCode = ex.StatusCode.ToPocoStatusCode();
+                response.Detail = ex.Status.Detail;
             }
             return response;
         }
 
-        public async Task<Pocos.UseDatabaseResponse> UseDatabaseAsync(string databaseName)
+        public async Task<Pocos.Status> UseDatabaseAsync(string databaseName)
         {
             var validator = new StringValidator();
             validator.ValidateAndThrow(databaseName);
 
-            var response = new Pocos.UseDatabaseResponse();
+            var response = new Pocos.Status();
             try
             {
                 var rpcRequest = new Database()
@@ -101,29 +96,30 @@ namespace ImmuDbDotnetLib
                 var rpcResponse = await this.client.UseDatabaseAsync(rpcRequest, this.AuthHeader);
                 this.activeDatabaseName = databaseName;
                 this.authToken = rpcResponse.Token;
-                response.IsSuccess = true;
+
+                response.StatusCode = Pocos.StatusCode.OK;
                 response.Detail = string.Empty;
             }
             catch (RpcException ex)
             {
-
-                response.IsSuccess = false;
+                response.StatusCode = ex.StatusCode.ToPocoStatusCode();
                 response.Detail = ex.Status.Detail;
             }
             return response;
         }
 
-        public async Task<IEnumerable<string>> DatabaseListAsync()
+        public async Task<(Pocos.Status status, IEnumerable<string> DatabaseName)> DatabaseListAsync()
         {
             try
             {
                 var rpcRequest = new Empty();
                 var databases = await this.client.DatabaseListAsync(rpcRequest, this.AuthHeader);
-                return databases.Databases.Select(db => db.DatabaseName);
+                var dbs = databases.Databases.Select(db => db.DatabaseName).ToList<string>();
+                return (new Pocos.Status { StatusCode = Pocos.StatusCode.OK, Detail = string.Empty }, dbs);
             }
             catch (RpcException ex)
             {
-
+                return (new Pocos.Status { StatusCode = ex.StatusCode.ToPocoStatusCode(), Detail = ex.Status.Detail }, null);
             }
         }
 
