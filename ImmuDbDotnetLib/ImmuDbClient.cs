@@ -39,6 +39,11 @@ namespace ImmuDbDotnetLib
 
         public ImmuDbClient(string address = "localhost", int port = 3322)
         {
+            var validator1 = new StringValidator();
+            validator1.ValidateAndThrow(address);
+            var validator2 = new IntValidator();
+            validator2.ValidateAndThrow(port);
+
             this.channel = new Channel(address, port, ChannelCredentials.Insecure);
             this.client = new ImmuService.ImmuServiceClient(this.channel);
         }
@@ -63,14 +68,20 @@ namespace ImmuDbDotnetLib
 
                 if (!rpcResponse.Warning.IsEmpty)
                 {
-                    response.IsSuccess = true;
-                    response.Detail = rpcResponse.Warning.ToStringUtf8();
+                    response.Status = new Pocos.Status()
+                    {
+                        IsSuccess = true,
+                        Detail = rpcResponse.Warning.ToStringUtf8()
+                    };
                 }
             }
             catch (RpcException ex)
             {
-                response.IsSuccess = false;
-                response.Detail = ex.Status.Detail;
+                response.Status = new Pocos.Status()
+                {
+                    IsSuccess = false,
+                    Detail = ex.Status.Detail
+                };
             }
             return response;
         }
@@ -83,9 +94,9 @@ namespace ImmuDbDotnetLib
             var response = new Pocos.UseDatabaseResponse();
             try
             {
-                var rpcRequest = new Database() 
-                { 
-                    DatabaseName = databaseName 
+                var rpcRequest = new Database()
+                {
+                    DatabaseName = databaseName
                 };
                 var rpcResponse = await this.client.UseDatabaseAsync(rpcRequest, this.AuthHeader);
                 this.activeDatabaseName = databaseName;
@@ -95,7 +106,7 @@ namespace ImmuDbDotnetLib
             }
             catch (RpcException ex)
             {
-                
+
                 response.IsSuccess = false;
                 response.Detail = ex.Status.Detail;
             }
@@ -112,7 +123,7 @@ namespace ImmuDbDotnetLib
             }
             catch (RpcException ex)
             {
-                
+
             }
         }
 
