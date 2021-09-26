@@ -8,8 +8,6 @@
             set;
         }
     }
-
-
     public class Status
     {
         public bool IsSuccess
