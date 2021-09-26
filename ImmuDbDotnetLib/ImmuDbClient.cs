@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Authentication;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeNotary.ImmuDb.ImmudbProto;
 using Google.Protobuf;
 using Grpc.Core;
 using Newtonsoft.Json;
+using ImmuDbDotnetLib.Validators;
 using Empty = Google.Protobuf.WellKnownTypes.Empty;
+using FluentValidation;
 
 namespace ImmuDbDotnetLib
 {
@@ -40,63 +43,77 @@ namespace ImmuDbDotnetLib
             this.client = new ImmuService.ImmuServiceClient(this.channel);
         }
 
-
-        public async Task<(bool IsSuccess, string Warning)> LoginAsync(string user, string password, string databaseName = null)
+        public async Task<Pocos.LoginResponse> LoginAsync(Pocos.LoginRequest request)
         {
-            (bool IsSuccess, string Warning) result = (false, string.Empty);
-            var request = new LoginRequest()
+            var validator = new LoginRequestValidator();
+            validator.ValidateAndThrow(request);
+
+            var response = new Pocos.LoginResponse();
+            try
             {
-                User = ByteString.CopyFromUtf8(user),
-                Password = ByteString.CopyFromUtf8(password),
-            };
-
-            var response = await this.client.LoginAsync(request, new CallOptions() { });
-
-            this.authToken = response.Token;
-
-            if (!response.Warning.IsEmpty)
-            {
-                result.IsSuccess = true;
-                result.Warning = response.Warning.ToStringUtf8();
-
-            }
-            if (!string.IsNullOrEmpty(databaseName))
-            {
-                await this.UseDatabaseAsync(databaseName);
-                result.IsSuccess = true;
-                result.Warning = string.Empty;
-            }
-            return result;
-        }
-
-        public async Task UseDatabaseAsync(string databaseName, bool createIfNotExists = true)
-        {
-            var databases = await this.GetDatabasesAsync();
-
-            if (!databases.Contains(databaseName))
-            {
-                if (createIfNotExists)
+                var rpcRequest = new LoginRequest()
                 {
-                    await this.CreateDatabaseAsync(databaseName);
-                }
-                else
+                    User = ByteString.CopyFromUtf8(request.User),
+                    Password = ByteString.CopyFromUtf8(request.Password),
+                };
+
+                var rpcResponse = await this.client.LoginAsync(rpcRequest, new CallOptions() { });
+
+                this.authToken = rpcResponse.Token;
+
+                if (!rpcResponse.Warning.IsEmpty)
                 {
-                    throw new Exception($"Database {databaseName} does not exists");
+                    response.IsSuccess = true;
+                    response.Detail = rpcResponse.Warning.ToStringUtf8();
                 }
             }
-
-            var result = await this.client.UseDatabaseAsync(new Database() { DatabaseName = databaseName }, this.AuthHeader);
-
-            this.activeDatabaseName = databaseName;
-
-
-            this.authToken = result.Token;
+            catch (RpcException ex)
+            {
+                response.IsSuccess = false;
+                response.Detail = ex.Status.Detail;
+            }
+            return response;
         }
 
-        public async Task<IEnumerable<string>> GetDatabasesAsync()
+        public async Task<Pocos.UseDatabaseResponse> UseDatabaseAsync(string databaseName)
         {
-            var databases = await this.client.DatabaseListAsync(new Empty(), this.AuthHeader);
-            return databases.Databases.Select(db => db.DatabaseName);
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(databaseName);
+
+            var response = new Pocos.UseDatabaseResponse();
+            try
+            {
+                var rpcRequest = new Database() 
+                { 
+                    DatabaseName = databaseName 
+                };
+                var rpcResponse = await this.client.UseDatabaseAsync(rpcRequest, this.AuthHeader);
+                this.activeDatabaseName = databaseName;
+                this.authToken = rpcResponse.Token;
+                response.IsSuccess = true;
+                response.Detail = string.Empty;
+            }
+            catch (RpcException ex)
+            {
+                
+                response.IsSuccess = false;
+                response.Detail = ex.Status.Detail;
+            }
+            return response;
+        }
+
+        public async Task<IEnumerable<string>> DatabaseListAsync()
+        {
+            try
+            {
+                var rpcRequest = new Empty();
+                var databases = await this.client.DatabaseListAsync(rpcRequest, this.AuthHeader);
+                return databases.Databases.Select(db => db.DatabaseName);
+            }
+            catch (RpcException ex)
+            {
+                
+            }
         }
 
         public async Task LogoutAsync()
@@ -157,7 +174,7 @@ namespace ImmuDbDotnetLib
             return result;
         }
 
-        public async Task<Pocos.VerifiableTx> VerifiedSet(string key, string value)
+        public async Task<Pocos.VerifiedSetResponse> VerifiedSet(string key, string value)
         {
             var mdh = this.AuthHeader;
             var request = new VerifiableSetRequest();
@@ -171,7 +188,7 @@ namespace ImmuDbDotnetLib
             using var cts = new CancellationTokenSource();
             var verifiableTx = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
             var json = verifiableTx.Tx.ToString();
-            return JsonConvert.DeserializeObject<Pocos.VerifiableTx>(json);
+            return JsonConvert.DeserializeObject<Pocos.VerifiedSetResponse>(json);
         }
 
         public async Task<List<string>> VerifiedGet(string key)
@@ -194,49 +211,7 @@ namespace ImmuDbDotnetLib
         }
 
 
-        public async Task UploadFile(FileInfo fileInfo)
-        {
-            var mdh = this.AuthHeader;
 
-            using var cts = new CancellationTokenSource();
-            var fileBytes = File.ReadAllBytes(fileInfo.FullName);
-            using var reader = new StreamReader(fileInfo.FullName);
-            var chunkNo = 0;
-            while ((!reader.EndOfStream) && (!cts.Token.IsCancellationRequested))
-            {
-                var line = reader.ReadLine();
-                var chunk = new Chunk()
-                {
-                    Content = ByteString.CopyFromUtf8(line)
-                };
-                chunkNo++;
-                var entry = new Metadata.Entry(fileInfo.Name, $"{chunkNo}");
-                mdh.Add(entry);
-                //mdh.Add(fileInfo.Name, fileBytes);
-                var ss = this.client.streamSet(mdh, null, cts.Token);
-
-                await ss.RequestStream.WriteAsync(chunk);
-            }
-            await this.client.streamSet(mdh, null, cts.Token).RequestStream.CompleteAsync();
-        }
-
-        public async Task DownloadFile(FileInfo fileInfo)
-        {
-            var mdh = this.AuthHeader;
-            mdh.Add(new Metadata.Entry(fileInfo.Name, $"1"));
-            var kr = new KeyRequest()
-            {
-                Key = ByteString.CopyFromUtf8(fileInfo.Name)
-            };
-            var cts = new CancellationTokenSource(15000); //15 seconds
-
-            var chunk = this.client.streamGet(kr, mdh, cancellationToken: cts.Token);
-            while (await chunk.ResponseStream.MoveNext(cts.Token))
-            {
-                var bs = chunk.ResponseStream.Current.Content;
-                Console.WriteLine(bs.ToStringUtf8());
-            }
-        }
 
         public void Close()
         {
@@ -259,6 +234,86 @@ namespace ImmuDbDotnetLib
             }
 
         }
+
+        //public async Task UploadFile(FileInfo fileInfo)
+        //{
+        //    var mdh = this.AuthHeader;
+        //    using var cts = new CancellationTokenSource();
+        //    var fileLines = File.ReadAllText(fileInfo.FullName);
+        //    var chunk = new Chunk()
+        //    {
+        //        Content = ByteString.CopyFromUtf8(fileLines)
+        //    };
+        //    //var entry = new Metadata.Entry(fileInfo.Name, fileLines);
+        //    //mdh.Add(entry);
+
+        //    var ss = this.client.streamSet(mdh, null, cts.Token);
+
+        //    await ss.RequestStream.WriteAsync(chunk);
+        //    //var kv = new KeyValue() { Key = ByteString.CopyFromUtf8(fileInfo.Name), Value = ByteString.CopyFromUtf8(fileLines) };
+        //    //await ss.RequestStream.WriteAsync(kv);
+        //    await ss.RequestStream.CompleteAsync();
+        //    await ss;
+        //    //ss.Dispose();
+        //    //var response = await ss.ResponseAsync;
+        //    //var ss2= ss.GetAwaiter().GetResult();
+        //    var s1 = ss.GetStatus();
+        //    Console.WriteLine(s1.StatusCode);
+        //    Console.WriteLine(s1.Detail);
+
+        //    var md = await ss.ResponseHeadersAsync;
+        //    Console.WriteLine(md.First().Key);
+        //    Console.WriteLine(md.First().Value);
+        //}
+        //public async Task UploadFile(FileInfo fileInfo)
+        //{
+        //    AsyncClientStreamingCall<Chunk, TxMetadata> ss=null;
+        //    var mdh = this.AuthHeader;
+
+        //    using var cts = new CancellationTokenSource();
+        //    var fileBytes = File.ReadAllBytes(fileInfo.FullName);
+        //    using var reader = new StreamReader(fileInfo.FullName);
+        //    var chunkNo = 0;
+        //    while ((!reader.EndOfStream) && (!cts.Token.IsCancellationRequested))
+        //    {
+        //        var line = reader.ReadLine();
+        //        var chunk = new Chunk()
+        //        {
+        //            Content = ByteString.CopyFromUtf8(line)
+        //        };
+        //        chunkNo++;
+        //        var entry = new Metadata.Entry(fileInfo.Name, $"{chunkNo}");
+        //        mdh.Add(entry);
+        //        //mdh.Add(fileInfo.Name, fileBytes);
+        //        ss = this.client.streamSet(mdh, null, cts.Token);
+
+        //        await ss.RequestStream.WriteAsync(chunk);
+        //    }
+        //    //await this.client.streamSet(mdh, null, cts.Token).RequestStream.CompleteAsync();
+        //    await ss.RequestStream.CompleteAsync();
+        //    await ss;
+        //    var s1 = ss.GetStatus();
+        //    Console.WriteLine(s1.StatusCode);
+        //    Console.WriteLine(s1.Detail);
+
+        //}
+        //public async Task DownloadFile(FileInfo fileInfo)
+        //{
+        //    var mdh = this.AuthHeader;
+        //    mdh.Add(new Metadata.Entry(fileInfo.Name, string.Empty));
+        //    var kr = new KeyRequest()
+        //    {
+        //        Key = ByteString.CopyFromUtf8(fileInfo.Name)
+        //    };
+        //    var cts = new CancellationTokenSource(15000); //15 seconds
+
+        //    var chunk = this.client.streamGet(kr, mdh, cancellationToken: cts.Token);
+        //    while (await chunk.ResponseStream.MoveNext(cts.Token))
+        //    {
+        //        var bs = chunk.ResponseStream.Current.Content;
+        //        Console.WriteLine(bs.ToStringUtf8());
+        //    }
+        //}
     }
 
 

@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace ImmuDbDotnetLib.Pocos
 {
-    public class VerifiableTx
+    public class VerifiedSetResponse
     {
         [JsonProperty("metadata")]
         public Metadata Metadata
