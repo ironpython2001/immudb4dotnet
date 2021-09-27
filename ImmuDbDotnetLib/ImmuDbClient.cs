@@ -47,7 +47,6 @@ namespace ImmuDbDotnetLib
             this.channel = new Channel(address, port, ChannelCredentials.Insecure);
             this.client = new ImmuService.ImmuServiceClient(this.channel);
         }
-
         public async Task<Pocos.Status> LoginAsync(Pocos.LoginRequest request)
         {
             var validator = new LoginRequestValidator();
@@ -79,7 +78,6 @@ namespace ImmuDbDotnetLib
             }
             return response;
         }
-
         public async Task<Pocos.Status> UseDatabaseAsync(string databaseName)
         {
             var validator = new StringValidator();
@@ -106,7 +104,6 @@ namespace ImmuDbDotnetLib
             }
             return response;
         }
-
         public async Task<(Pocos.Status status, IEnumerable<string> DatabaseName)> DatabaseListAsync()
         {
             try
@@ -121,7 +118,6 @@ namespace ImmuDbDotnetLib
                 return (new Pocos.Status { StatusCode = ex.StatusCode.ToPocoStatusCode(), Detail = ex.Status.Detail }, null);
             }
         }
-
         public async Task<Pocos.Status> LogoutAsync()
         {
             try
@@ -146,7 +142,6 @@ namespace ImmuDbDotnetLib
                 };
             }
         }
-
         public async Task<Pocos.Status> CreateDatabaseAsync(string databaseName)
         {
             var validator = new StringValidator();
@@ -174,7 +169,6 @@ namespace ImmuDbDotnetLib
                 };
             }
         }
-
         public async Task<(Pocos.Status status, ulong? Id)> SetAsync(string key, string value)
         {
             var validator = new StringValidator();
@@ -198,7 +192,7 @@ namespace ImmuDbDotnetLib
                     StatusCode = Pocos.StatusCode.OK,
                     Detail = string.Empty
                 };
-                result.Id= reply.Id;
+                result.Id = reply.Id;
             }
             catch (RpcException ex)
             {
@@ -211,38 +205,51 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
-
-        public async Task<string> GetAsync(string key)
+        public async Task<(Pocos.Status status, string Value)> GetAsync(string key)
         {
-            var mdh = this.AuthHeader;
-            var request = new KeyRequest()
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(key);
+
+            (Pocos.Status status, string Value) result;
+
+            try
             {
-                Key = ByteString.CopyFromUtf8(key)
-            };
-            var reply = await this.client.GetAsync(request, mdh);
-            return reply.Value.ToStringUtf8();
-        }
+                var mdh = this.AuthHeader;
+                var request = new KeyRequest()
+                {
+                    Key = ByteString.CopyFromUtf8(key)
+                };
+                var reply = await this.client.GetAsync(request, mdh);
 
-        public async Task<T> GetAsync<T>(string key) where T : class
-        {
-            var json = await this.GetAsync(key);
-
-            return JsonConvert.DeserializeObject<T>(json);
-        }
-
-        public async Task<List<(ulong Tx, string Key, string Value)>> GetAll(List<string> keys)
-        {
-            var result = new List<(ulong Tx, string Key, string Value)>();
-            var klr = new KeyListRequest();
-            keys.ForEach(key => klr.Keys.Add(ByteString.CopyFromUtf8(key)));
-            var cts = new CancellationTokenSource(15000);
-            var entries = await this.client.GetAllAsync(klr, this.AuthHeader, null, cts.Token);
-            foreach (var e in entries.Entries_)
-            {
-                result.Add((e.Tx, e.Key.ToStringUtf8(), e.Value.ToStringUtf8()));
+                result.status = new Pocos.Status
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+                result.Value = reply.Value.ToStringUtf8();
             }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.Status
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.Value = null;
+            }
+            
             return result;
         }
+        public async Task<(Pocos.Status status, T Value)> GetAsync<T>(string key) where T : class
+        {
+            var result = await this.GetAsync(key);
+            return (result.status, JsonConvert.DeserializeObject<T>(result.Value));
+        }
+        
+
+        
+
+        
 
         public async Task<Pocos.VerifiedSetResponse> VerifiedSet(string key, string value)
         {
@@ -260,7 +267,6 @@ namespace ImmuDbDotnetLib
             var json = verifiableTx.Tx.ToString();
             return JsonConvert.DeserializeObject<Pocos.VerifiedSetResponse>(json);
         }
-
         public async Task<List<string>> VerifiedGet(string key)
         {
             var result = new List<string>();
@@ -307,7 +313,6 @@ namespace ImmuDbDotnetLib
                 }
             }
         }
-
         protected virtual void Dispose(bool _disposing)
         {
             if (!this.disposedValue)
@@ -316,17 +321,29 @@ namespace ImmuDbDotnetLib
                 this.Close();
             }
         }
-
         ~ImmuDbClient()
         {
             this.Dispose(false);
         }
-
         public void Dispose()
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
+
+        //public async Task<List<(ulong Tx, string Key, string Value)>> GetAll(List<string> keys)
+        //{
+        //    var result = new List<(ulong Tx, string Key, string Value)>();
+        //    var klr = new KeyListRequest();
+        //    keys.ForEach(key => klr.Keys.Add(ByteString.CopyFromUtf8(key)));
+        //    var cts = new CancellationTokenSource(15000);
+        //    var entries = await this.client.GetAllAsync(klr, this.AuthHeader, null, cts.Token);
+        //    foreach (var e in entries.Entries_)
+        //    {
+        //        result.Add((e.Tx, e.Key.ToStringUtf8(), e.Value.ToStringUtf8()));
+        //    }
+        //    return result;
+        //}
         //public async Task UploadFile(FileInfo fileInfo)
         //{
         //    var mdh = this.AuthHeader;
