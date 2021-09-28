@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Authentication;
 using System.Threading;
@@ -47,12 +48,12 @@ namespace ImmuDbDotnetLib
             this.channel = new Channel(address, port, ChannelCredentials.Insecure);
             this.client = new ImmuService.ImmuServiceClient(this.channel);
         }
-        public async Task<Pocos.Status> LoginAsync(Pocos.LoginRequest request)
+        public async Task<Pocos.RpcStatus> LoginAsync(Pocos.LoginRequest request)
         {
             var validator = new LoginRequestValidator();
             validator.ValidateAndThrow(request);
 
-            var response = new Pocos.Status();
+            var response = new Pocos.RpcStatus();
             try
             {
                 var rpcRequest = new LoginRequest()
@@ -78,12 +79,12 @@ namespace ImmuDbDotnetLib
             }
             return response;
         }
-        public async Task<Pocos.Status> UseDatabaseAsync(string databaseName)
+        public async Task<Pocos.RpcStatus> UseDatabaseAsync(string databaseName)
         {
             var validator = new StringValidator();
             validator.ValidateAndThrow(databaseName);
 
-            var response = new Pocos.Status();
+            var response = new Pocos.RpcStatus();
             try
             {
                 var rpcRequest = new Database()
@@ -104,21 +105,21 @@ namespace ImmuDbDotnetLib
             }
             return response;
         }
-        public async Task<(Pocos.Status status, IEnumerable<string> DatabaseName)> DatabaseListAsync()
+        public async Task<(Pocos.RpcStatus status, IEnumerable<string> DatabaseNames)> DatabaseListAsync()
         {
             try
             {
                 var rpcRequest = new Empty();
                 var databases = await this.client.DatabaseListAsync(rpcRequest, this.AuthHeader);
                 var dbs = databases.Databases.Select(db => db.DatabaseName).ToList<string>();
-                return (new Pocos.Status { StatusCode = Pocos.StatusCode.OK, Detail = string.Empty }, dbs);
+                return (new Pocos.RpcStatus { StatusCode = Pocos.StatusCode.OK, Detail = string.Empty }, dbs);
             }
             catch (RpcException ex)
             {
-                return (new Pocos.Status { StatusCode = ex.StatusCode.ToPocoStatusCode(), Detail = ex.Status.Detail }, null);
+                return (new Pocos.RpcStatus { StatusCode = ex.StatusCode.ToPocoStatusCode(), Detail = ex.Status.Detail }, null);
             }
         }
-        public async Task<Pocos.Status> LogoutAsync()
+        public async Task<Pocos.RpcStatus> LogoutAsync()
         {
             try
             {
@@ -127,7 +128,7 @@ namespace ImmuDbDotnetLib
                     await this.client.LogoutAsync(new Empty(), this.AuthHeader);
                     this.authToken = null;
                 }
-                return new Pocos.Status
+                return new Pocos.RpcStatus
                 {
                     StatusCode = Pocos.StatusCode.OK,
                     Detail = string.Empty
@@ -135,14 +136,14 @@ namespace ImmuDbDotnetLib
             }
             catch (RpcException ex)
             {
-                return new Pocos.Status
+                return new Pocos.RpcStatus
                 {
                     StatusCode = ex.StatusCode.ToPocoStatusCode(),
                     Detail = ex.Status.Detail
                 };
             }
         }
-        public async Task<Pocos.Status> CreateDatabaseAsync(string databaseName)
+        public async Task<Pocos.RpcStatus> CreateDatabaseAsync(string databaseName)
         {
             var validator = new StringValidator();
             validator.ValidateAndThrow(databaseName);
@@ -154,7 +155,7 @@ namespace ImmuDbDotnetLib
                     DatabaseName = databaseName
                 },
                 this.AuthHeader);
-                return new Pocos.Status
+                return new Pocos.RpcStatus
                 {
                     StatusCode = Pocos.StatusCode.OK,
                     Detail = string.Empty
@@ -162,20 +163,20 @@ namespace ImmuDbDotnetLib
             }
             catch (RpcException ex)
             {
-                return new Pocos.Status
+                return new Pocos.RpcStatus
                 {
                     StatusCode = ex.StatusCode.ToPocoStatusCode(),
                     Detail = ex.Status.Detail
                 };
             }
         }
-        public async Task<(Pocos.Status status, ulong? Id)> SetAsync(string key, string value)
+        public async Task<(Pocos.RpcStatus status, ulong? Id)> SetAsync(string key, string value)
         {
             var validator = new StringValidator();
             validator.ValidateAndThrow(key);
             validator.ValidateAndThrow(value);
 
-            (Pocos.Status status, ulong? Id) result;
+            (Pocos.RpcStatus status, ulong? Id) result;
 
             try
             {
@@ -187,7 +188,7 @@ namespace ImmuDbDotnetLib
                 });
                 var reply = await this.client.SetAsync(request, this.AuthHeader);
 
-                result.status = new Pocos.Status
+                result.status = new Pocos.RpcStatus
                 {
                     StatusCode = Pocos.StatusCode.OK,
                     Detail = string.Empty
@@ -196,7 +197,7 @@ namespace ImmuDbDotnetLib
             }
             catch (RpcException ex)
             {
-                result.status = new Pocos.Status
+                result.status = new Pocos.RpcStatus
                 {
                     StatusCode = ex.StatusCode.ToPocoStatusCode(),
                     Detail = ex.Status.Detail
@@ -205,12 +206,12 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
-        public async Task<(Pocos.Status status, string Value)> GetAsync(string key)
+        public async Task<(Pocos.RpcStatus status, string Value)> GetAsync(string key)
         {
             var validator = new StringValidator();
             validator.ValidateAndThrow(key);
 
-            (Pocos.Status status, string Value) result;
+            (Pocos.RpcStatus status, string Value) result;
 
             try
             {
@@ -221,7 +222,7 @@ namespace ImmuDbDotnetLib
                 };
                 var reply = await this.client.GetAsync(request, mdh);
 
-                result.status = new Pocos.Status
+                result.status = new Pocos.RpcStatus
                 {
                     StatusCode = Pocos.StatusCode.OK,
                     Detail = string.Empty
@@ -230,60 +231,282 @@ namespace ImmuDbDotnetLib
             }
             catch (RpcException ex)
             {
-                result.status = new Pocos.Status
+                result.status = new Pocos.RpcStatus
                 {
                     StatusCode = ex.StatusCode.ToPocoStatusCode(),
                     Detail = ex.Status.Detail
                 };
                 result.Value = null;
             }
-            
+
             return result;
         }
-        public async Task<(Pocos.Status status, T Value)> GetAsync<T>(string key) where T : class
+        public async Task<(Pocos.RpcStatus status, T Value)> GetAsync<T>(string key) where T : class
         {
             var result = await this.GetAsync(key);
             return (result.status, JsonConvert.DeserializeObject<T>(result.Value));
         }
-        
-
-        
-
-        
-
-        public async Task<Pocos.VerifiedSetResponse> VerifiedSet(string key, string value)
+        public async Task<(Pocos.RpcStatus status, Pocos.GetTxResponse response)> GetTx(ulong txno)
         {
-            var mdh = this.AuthHeader;
-            var request = new VerifiableSetRequest();
-            var kv = new KeyValue()
+            var validator = new ULongValidator();
+            validator.ValidateAndThrow(txno);
+
+            (Pocos.RpcStatus status, Pocos.GetTxResponse response) result;
+            try
             {
-                Key = ByteString.CopyFromUtf8(key),
-                Value = ByteString.CopyFromUtf8(value)
-            };
-            request.SetRequest = new SetRequest();
-            request.SetRequest.KVs.Add(kv);
-            using var cts = new CancellationTokenSource();
-            var verifiableTx = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
-            var json = verifiableTx.Tx.ToString();
-            return JsonConvert.DeserializeObject<Pocos.VerifiedSetResponse>(json);
-        }
-        public async Task<List<string>> VerifiedGet(string key)
-        {
-            var result = new List<string>();
-            var mdh = this.AuthHeader;
-            var request = new VerifiableGetRequest()
+                var rpcRequest = new TxRequest
+                {
+                    Tx = txno
+                };
+                using var cts = new CancellationTokenSource();
+                var rpcResponse = await this.client.TxByIdAsync(rpcRequest, this.AuthHeader, null, cts.Token);
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+                result.response = new Pocos.GetTxResponse(rpcResponse.ToString());
+                result.response.TxId = rpcResponse.Metadata.Id;
+
+                var entriesEnumerator = rpcResponse.Entries.GetEnumerator();
+                while (entriesEnumerator.MoveNext())
+                {
+                    result.response.Key = entriesEnumerator.Current.Key.ToStringUtf8();
+                    result.response.Value = entriesEnumerator.Current.HValue.ToStringUtf8();
+                }
+            }
+            catch (RpcException ex)
             {
-                KeyRequest = new KeyRequest() { Key = ByteString.CopyFromUtf8(key) },
-            };
-            using var cts = new CancellationTokenSource();
-            var response = await this.client.VerifiableGetAsync(request, mdh, null, cts.Token);
-            var entriesEnumerator = response.VerifiableTx.Tx.Entries.GetEnumerator();
-            while (entriesEnumerator.MoveNext())
-            {
-                //Console.WriteLine(entriesEnumerator.Current);
-                result.Add(entriesEnumerator.Current.HValue.ToStringUtf8());
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.response = null;
             }
             return result;
+
+        }
+        public async Task<(Pocos.RpcStatus status, Pocos.VerifiedSetResponse response)> VerifiedSet(string key, string value)
+        {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(key);
+            validator.ValidateAndThrow(value);
+
+            (Pocos.RpcStatus status, Pocos.VerifiedSetResponse response) result;
+            try
+            {
+                var mdh = this.AuthHeader;
+                var request = new VerifiableSetRequest();
+                var kv = new KeyValue()
+                {
+                    Key = ByteString.CopyFromUtf8(key),
+                    Value = ByteString.CopyFromUtf8(value)
+                };
+                request.SetRequest = new SetRequest();
+                request.SetRequest.KVs.Add(kv);
+                using var cts = new CancellationTokenSource();
+                var rpcResponse = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
+
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+
+                result.response = new Pocos.VerifiedSetResponse(rpcResponse.ToString());
+                result.response.TxId = rpcResponse.Tx.Metadata.Id;
+                result.response.Key = key;
+                result.response.Value = value;
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.response = null;
+            }
+            return result;
+        }
+        public async Task<(Pocos.RpcStatus status, Pocos.VerifiedGetResponse response)> VerifiedGet(string key)
+        {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(key);
+
+            (Pocos.RpcStatus status, Pocos.VerifiedGetResponse response) result;
+
+            try
+            {
+                var mdh = this.AuthHeader;
+                var rpcRequest = new VerifiableGetRequest()
+                {
+                    KeyRequest = new KeyRequest()
+                    {
+                        Key = ByteString.CopyFromUtf8(key)
+                    },
+                };
+                using var cts = new CancellationTokenSource();
+                var rpcResponse = await this.client.VerifiableGetAsync(rpcRequest, mdh, null, cts.Token);
+
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+
+                result.response = new Pocos.VerifiedGetResponse(rpcResponse.ToString());
+                result.response.TxId = rpcResponse.VerifiableTx.Tx.Metadata.Id;
+                result.response.Key = rpcResponse.Entry.Key.ToStringUtf8();
+                result.response.Value = rpcResponse.Entry.Value.ToStringUtf8();
+
+                //result.response.PublicKey= rpcResponse.VerifiableTx.Tx.Signature.PublicKey.ToStringUtf8();
+                //var entriesEnumerator = rpcResponse.VerifiableTx.Tx.Entries.GetEnumerator();
+                //while (entriesEnumerator.MoveNext())
+                //{
+                //    result.response.Key = entriesEnumerator.Current.Key.ToStringUtf8();
+                //    result.response.Value = entriesEnumerator.Current.HValue.ToStringUtf8();
+                //}
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.response = null;
+            }
+            return result;
+        }
+
+        public async Task<(Pocos.RpcStatus status, List<string> tables)> Tables()
+        {
+
+            (Pocos.RpcStatus status, List<string> tables) result;
+
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                var rpcResponse = this.client.ListTablesAsync(new Empty(), this.AuthHeader, null, cts.Token);
+                var rs = await rpcResponse.ResponseAsync;
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = rpcResponse.GetStatus().StatusCode.ToPocoStatusCode(),
+                    Detail = rpcResponse.GetStatus().Detail
+                };
+                result.tables = new List<string>();
+                foreach (Row r in rs.Rows)
+                {
+                    foreach (SQLValue val in r.Values)
+                    {
+                        result.tables.Add(val.S.ToString());
+                    }
+                }
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.RpcStatus
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.tables = null;
+            }
+            return result;
+        }
+
+        public async Task<Pocos.RpcStatus> SQLExec(string sql)
+        {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(sql);
+
+            Pocos.RpcStatus rpcStatus;
+
+            try
+            {
+                var sqlExecRequest = new SQLExecRequest();
+                sqlExecRequest.Sql = sql;
+                using var cts = new CancellationTokenSource();
+                var sqlExecResult = await this.client.SQLExecAsync(sqlExecRequest, this.AuthHeader, null, cts.Token);
+
+                rpcStatus = new Pocos.RpcStatus()
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+            }
+            catch (RpcException ex)
+            {
+                rpcStatus = new Pocos.RpcStatus()
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+            }
+            return rpcStatus;
+        }
+
+        //public async Task<(Pocos.RpcStatus status, List<string> tables)> SQLQuery(string sql)
+        public async Task<Pocos.RpcStatus> SQLQuery(string sql)
+        {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(sql);
+
+            Pocos.RpcStatus status;
+            //(Pocos.RpcStatus status, List<string> tables) result;
+            try
+            {
+                var sqlQueryRequest = new SQLQueryRequest();
+                sqlQueryRequest.Sql = sql;
+                using var cts = new CancellationTokenSource();
+                var sqlQueryResult = await this.client.SQLQueryAsync(sqlQueryRequest, this.AuthHeader, null, cts.Token);
+                
+                for (int i = 0; i < sqlQueryResult.Rows.Count; i++)
+                {
+                    var rowVals = sqlQueryResult.Rows[i].Values;
+                    for (int j = 0; j < rowVals.Count; j++)
+                    {
+                        var val = rowVals[j];
+                        switch (val.ValueCase)
+                        {
+                            case SQLValue.ValueOneofCase.None:
+                                break;
+                            case SQLValue.ValueOneofCase.Null:
+                                break;
+                            case SQLValue.ValueOneofCase.N:
+                                break;
+                            case SQLValue.ValueOneofCase.S:
+                                break;
+                            case SQLValue.ValueOneofCase.B:
+                                break;
+                            case SQLValue.ValueOneofCase.Bs:
+                                break;
+                            default:
+                                break;
+                        }
+                        
+                    }
+                }
+                
+
+                status = new Pocos.RpcStatus()
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+            }
+            catch (RpcException ex)
+            {
+                status = new Pocos.RpcStatus()
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+            }
+            //return sqlQueryResult;
+            return status;
         }
         public void Close()
         {

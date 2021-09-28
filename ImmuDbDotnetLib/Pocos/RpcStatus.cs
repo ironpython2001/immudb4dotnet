@@ -1,6 +1,6 @@
 ﻿namespace ImmuDbDotnetLib.Pocos
 {
-    public class Status
+    public class RpcStatus
     {
         public StatusCode StatusCode
         {

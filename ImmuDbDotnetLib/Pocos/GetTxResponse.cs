@@ -1,12 +1,9 @@
-﻿using System.Collections.Generic;
-using Newtonsoft.Json;
-
-namespace ImmuDbDotnetLib.Pocos
+﻿namespace ImmuDbDotnetLib.Pocos
 {
-    public class VerifiedSetResponse
+    public class GetTxResponse
     {
         private string json;
-        public VerifiedSetResponse(string json)
+        public GetTxResponse(string json)
         {
             this.json = json;
         }
@@ -25,12 +22,12 @@ namespace ImmuDbDotnetLib.Pocos
             get;
             internal set;
         }
+
         public override string ToString()
         {
             return this.json;
         }
     }
-
 }
 
 
