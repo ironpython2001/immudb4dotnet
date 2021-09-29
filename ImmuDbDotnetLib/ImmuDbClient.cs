@@ -448,65 +448,72 @@ namespace ImmuDbDotnetLib
             return rpcStatus;
         }
 
-        //public async Task<(Pocos.RpcStatus status, List<string> tables)> SQLQuery(string sql)
-        public async Task<Pocos.RpcStatus> SQLQuery(string sql)
+        public async Task<(Pocos.RpcStatus status, List<T> rows)> SQLQuery<T>(string sql)
         {
             var validator = new StringValidator();
             validator.ValidateAndThrow(sql);
 
-            Pocos.RpcStatus status;
-            //(Pocos.RpcStatus status, List<string> tables) result;
+            (Pocos.RpcStatus status, List<T> rows) result;
             try
             {
                 var sqlQueryRequest = new SQLQueryRequest();
                 sqlQueryRequest.Sql = sql;
                 using var cts = new CancellationTokenSource();
                 var sqlQueryResult = await this.client.SQLQueryAsync(sqlQueryRequest, this.AuthHeader, null, cts.Token);
-                
-                for (int i = 0; i < sqlQueryResult.Rows.Count; i++)
+
+                var listT = new List<T>();
+
+                for (int i = 0; i < sqlQueryResult?.Rows?.Count; i++)
                 {
+                    var objT = Activator.CreateInstance<T>();
+                    var props = objT.GetType().GetProperties();
+
                     var rowVals = sqlQueryResult.Rows[i].Values;
                     for (int j = 0; j < rowVals.Count; j++)
                     {
                         var val = rowVals[j];
                         switch (val.ValueCase)
                         {
-                            case SQLValue.ValueOneofCase.None:
-                                break;
+                            // case SQLValue.ValueOneofCase.None:
+                            //     break;
                             case SQLValue.ValueOneofCase.Null:
+                                props[j].SetValue(objT, val.Null);
                                 break;
                             case SQLValue.ValueOneofCase.N:
+                                props[j].SetValue(objT, val.N);
                                 break;
                             case SQLValue.ValueOneofCase.S:
+                                props[j].SetValue(objT, val.S);
                                 break;
                             case SQLValue.ValueOneofCase.B:
+                                props[j].SetValue(objT, val.B);
                                 break;
                             case SQLValue.ValueOneofCase.Bs:
+                                props[j].SetValue(objT, val.Bs);
                                 break;
                             default:
                                 break;
                         }
-                        
                     }
+                    listT.Add(objT);
                 }
-                
-
-                status = new Pocos.RpcStatus()
+                result.status = new Pocos.RpcStatus()
                 {
                     StatusCode = Pocos.StatusCode.OK,
                     Detail = string.Empty
                 };
+                result.rows = listT;
             }
             catch (RpcException ex)
             {
-                status = new Pocos.RpcStatus()
+                result.status = new Pocos.RpcStatus()
                 {
                     StatusCode = ex.StatusCode.ToPocoStatusCode(),
                     Detail = ex.Status.Detail
                 };
+                result.rows = null;
             }
-            //return sqlQueryResult;
-            return status;
+            return result;
         }
         public void Close()
         {
@@ -523,7 +530,7 @@ namespace ImmuDbDotnetLib
                     this.channel.ShutdownAsync();
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 //catch all when we called it from dispose
                 if (!this.disposedValue)

@@ -94,10 +94,22 @@ namespace ImmuDbClientDemoApp
             WriteLine(res11.StatusCode);
             WriteLine(res11.Detail);
 
+
+            var sql4 = @"UPSERT INTO Employee(id, name, salary) VALUES (2, 'Joe2', 2000);";
+            var res13 = await client.SQLExec(sql4);
+            WriteLine(res13.StatusCode);
+            WriteLine(res13.Detail);
+
             var sql3 = @"SELECT t.id as id,t.name as name,t.salary as salary FROM (Employee AS t) WHERE id <= 3 ";
-            var res12 = await client.SQLQuery(sql3);
-            WriteLine(res12.StatusCode);
-            WriteLine(res12.Detail);
+            var res12 = await client.SQLQuery<Employee>(sql3);
+            WriteLine(res12.status.StatusCode);
+            WriteLine(res12.status.Detail);
+            foreach (var item in res12.rows)
+            {
+                WriteLine(item.Id);
+                WriteLine(item.Name);
+                WriteLine(item.Salary);
+            }
 
             //var result2 = await client.GetAll(new List<string> { "balance" });
             //foreach (var res in result2)
@@ -115,6 +127,23 @@ namespace ImmuDbClientDemoApp
             await client.LogoutAsync();
 
 
+        }
+
+
+    }
+    public class Employee
+    {
+        public ulong Id
+        {
+            get; set;
+        }
+        public string Name
+        {
+            get; set;
+        }
+        public ulong Salary
+        {
+            get; set;
         }
     }
 }
