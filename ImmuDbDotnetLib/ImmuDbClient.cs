@@ -306,7 +306,7 @@ namespace ImmuDbDotnetLib
                 request.SetRequest.KVs.Add(kv);
                 using var cts = new CancellationTokenSource();
                 var rpcResponse = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
-
+                
                 result.status = new Pocos.RpcStatus
                 {
                     StatusCode = Pocos.StatusCode.OK,
@@ -623,7 +623,7 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
-        public async Task<(Pocos.RpcStatus status, Pocos.CurrentStateResponse response)> State()
+        public async Task<(Pocos.RpcStatus status, Pocos.CurrentStateResponse response)> CurrentState()
         {
             (Pocos.RpcStatus status, Pocos.CurrentStateResponse response) result;
 
@@ -642,11 +642,11 @@ namespace ImmuDbDotnetLib
                 //var s1 = Encoding.UTF8.GetString(ba);
                 //var content = Content.Parser.ParseFrom(ba);
                 //var bas = content.Payload.ToStringUtf8();
-                //var bas = string.Empty;
-                //foreach (var item in rpcResponse.TxHash.ToList())
-                //{
-                //    bas = bas+ item + " ";
-                //}
+                var bas = string.Empty;
+                foreach (var item in rpcResponse.TxHash.ToList())
+                {
+                    bas = bas + item + " ";
+                }
                 var s = Encoding.UTF8.GetString(ba);
                 result.response.TxHash = s;
                 result.response.Db= rpcResponse.Db;

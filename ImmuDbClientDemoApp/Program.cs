@@ -58,7 +58,7 @@ namespace ImmuDbClientDemoApp
             WriteLine(res6.response.Value);
             WriteLine(res6.response.ToString());
 
-            var res19 = await client.State();
+            var res19 = await client.CurrentState();
             WriteLine(res19.status.StatusCode);
             WriteLine(res19.status.Detail);
             WriteLine(res19.response.TxId);
