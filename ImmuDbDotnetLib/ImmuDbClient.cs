@@ -21,7 +21,6 @@ namespace ImmuDbDotnetLib
         private readonly Channel channel;
         private readonly ImmuService.ImmuServiceClient client;
         private string authToken;
-        private string activeDatabaseName = "defaultdb";
         private bool disposedValue;
 
         public Metadata AuthHeader
@@ -92,7 +91,6 @@ namespace ImmuDbDotnetLib
                     DatabaseName = databaseName
                 };
                 var rpcResponse = await this.client.UseDatabaseAsync(rpcRequest, this.AuthHeader);
-                this.activeDatabaseName = databaseName;
                 this.authToken = rpcResponse.Token;
 
                 response.StatusCode = Pocos.StatusCode.OK;
