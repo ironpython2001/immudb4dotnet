@@ -380,7 +380,50 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
+        public async Task<(Pocos.RpcStatus status, List<Pocos.HistoryResponse> response)> History(string key)
+        {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(key);
 
+            (Pocos.RpcStatus status, List<Pocos.HistoryResponse> response) result;
+
+            try
+            {
+                var rpcRequest = new HistoryRequest()
+                {
+                    Key = ByteString.CopyFromUtf8(key)
+                };
+                using var cts = new CancellationTokenSource();
+                var rpcResponse = await this.client.HistoryAsync(rpcRequest, this.AuthHeader, null, cts.Token);
+                    
+                result.status = new Pocos.RpcStatus()
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+
+                result.response = new List<Pocos.HistoryResponse>();
+                foreach (var item in rpcResponse.Entries_.ToList())
+                {
+                    result.response.Add(new Pocos.HistoryResponse
+                    {
+                        Tx = item.Tx,
+                        Key = item.Key.ToStringUtf8(),
+                        Value = item.Value.ToStringUtf8()
+                    });
+                }
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.RpcStatus()
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.response = null;
+            }
+            return result;
+        }
         public async Task<(Pocos.RpcStatus status, List<string> tables)> Tables()
         {
 
@@ -416,7 +459,74 @@ namespace ImmuDbDotnetLib
             }
             return result;
         }
+        public async Task<(Pocos.RpcStatus status, List<Pocos.ColumnDescription> tableDescription)> Describe(string tableName)
+        {
+            var validator = new StringValidator();
+            validator.ValidateAndThrow(tableName);
 
+            (Pocos.RpcStatus status, List<Pocos.ColumnDescription> tableDescription) result;
+
+            try
+            {
+                var tableRequest = new Table()
+                {
+                    TableName = tableName.ToLower()
+                };
+                using var cts = new CancellationTokenSource();
+                var sqlQueryResult = await this.client.DescribeTableAsync(tableRequest, this.AuthHeader, null, cts.Token);
+                result.status = new Pocos.RpcStatus()
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+                result.tableDescription = new List<Pocos.ColumnDescription>();
+
+                for (int i = 0; i < sqlQueryResult?.Rows?.Count; i++)
+                {
+                    var colDesc = Activator.CreateInstance<Pocos.ColumnDescription>();
+                    var props = colDesc.GetType().GetProperties();
+
+                    var rowVals = sqlQueryResult.Rows[i].Values;
+                    for (int j = 0; j < rowVals.Count; j++)
+                    {
+                        var val = rowVals[j];
+                        switch (val.ValueCase)
+                        {
+                            // case SQLValue.ValueOneofCase.None:
+                            //     break;
+                            case SQLValue.ValueOneofCase.Null:
+                                props[j].SetValue(colDesc, val.Null);
+                                break;
+                            case SQLValue.ValueOneofCase.N:
+                                props[j].SetValue(colDesc, val.N);
+                                break;
+                            case SQLValue.ValueOneofCase.S:
+                                props[j].SetValue(colDesc, val.S);
+                                break;
+                            case SQLValue.ValueOneofCase.B:
+                                props[j].SetValue(colDesc, val.B);
+                                break;
+                            case SQLValue.ValueOneofCase.Bs:
+                                props[j].SetValue(colDesc, val.Bs);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    result.tableDescription.Add(colDesc);
+                }
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.RpcStatus()
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.tableDescription = null;
+            }
+            return result;
+        }
         public async Task<Pocos.RpcStatus> SQLExec(string sql)
         {
             var validator = new StringValidator();
@@ -434,7 +544,7 @@ namespace ImmuDbDotnetLib
                 rpcStatus = new Pocos.RpcStatus()
                 {
                     StatusCode = Pocos.StatusCode.OK,
-                    Detail = string.Empty
+                    Detail = $"Effected Rows {sqlExecResult?.Dtxs?.Count}"
                 };
             }
             catch (RpcException ex)
@@ -447,7 +557,6 @@ namespace ImmuDbDotnetLib
             }
             return rpcStatus;
         }
-
         public async Task<(Pocos.RpcStatus status, List<T> rows)> SQLQuery<T>(string sql)
         {
             var validator = new StringValidator();

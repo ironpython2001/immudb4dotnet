@@ -111,6 +111,30 @@ namespace ImmuDbClientDemoApp
                 WriteLine(item.Salary);
             }
 
+            var res14 = await client.Describe("Employee");
+            WriteLine(res12.status.StatusCode);
+            WriteLine(res12.status.Detail);
+            foreach (var item in res14.tableDescription)
+            {
+                WriteLine(item.Column);
+                WriteLine(item.Type);
+                WriteLine(item.Nullable);
+                WriteLine(item.Index);
+                WriteLine(item.AutoIncrement);
+                WriteLine(item.Unique);   
+
+            }
+
+            var res15 = await client.History("balance");
+            WriteLine(res15.status.StatusCode);
+            WriteLine(res15.status.Detail);
+            foreach (var item in res15.response)
+            {
+                WriteLine(item.Tx);
+                WriteLine(item.Key);
+                WriteLine(item.Value);
+            }
+
             //var result2 = await client.GetAll(new List<string> { "balance" });
             //foreach (var res in result2)
             //{
