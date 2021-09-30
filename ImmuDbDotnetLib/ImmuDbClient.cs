@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Authentication;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeNotary.ImmuDb.ImmudbProto;
@@ -619,6 +620,45 @@ namespace ImmuDbDotnetLib
                     Detail = ex.Status.Detail
                 };
                 result.rows = null;
+            }
+            return result;
+        }
+        public async Task<(Pocos.RpcStatus status, Pocos.CurrentStateResponse response)> State()
+        {
+            (Pocos.RpcStatus status, Pocos.CurrentStateResponse response) result;
+
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                var rpcResponse = await this.client.CurrentStateAsync(new Empty(), this.AuthHeader, null, cts.Token);
+                result.status = new Pocos.RpcStatus()
+                {
+                    StatusCode = Pocos.StatusCode.OK,
+                    Detail = string.Empty
+                };
+                result.response = new Pocos.CurrentStateResponse();
+                result.response.TxId = rpcResponse.TxId;
+                var ba = rpcResponse.TxHash.ToByteArray().SHAHash();
+                //var s1 = Encoding.UTF8.GetString(ba);
+                //var content = Content.Parser.ParseFrom(ba);
+                //var bas = content.Payload.ToStringUtf8();
+                //var bas = string.Empty;
+                //foreach (var item in rpcResponse.TxHash.ToList())
+                //{
+                //    bas = bas+ item + " ";
+                //}
+                var s = Encoding.UTF8.GetString(ba);
+                result.response.TxHash = s;
+                result.response.Db= rpcResponse.Db;
+            }
+            catch (RpcException ex)
+            {
+                result.status = new Pocos.RpcStatus()
+                {
+                    StatusCode = ex.StatusCode.ToPocoStatusCode(),
+                    Detail = ex.Status.Detail
+                };
+                result.response = null;
             }
             return result;
         }

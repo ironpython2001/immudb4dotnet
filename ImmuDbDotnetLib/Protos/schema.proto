@@ -440,6 +440,11 @@ message SQLValue {
 	}
 }
 
+message Content {
+	uint64 timestamp = 1;
+	bytes payload = 2;
+}
+
 // immudb gRPC & REST service
 // IMPORTANT: All get and safeget functions return base64-encoded keys and values, while all set and safeset functions expect base64-encoded inputs.
 service ImmuService {

@@ -58,6 +58,14 @@ namespace ImmuDbClientDemoApp
             WriteLine(res6.response.Value);
             WriteLine(res6.response.ToString());
 
+            var res19 = await client.State();
+            WriteLine(res19.status.StatusCode);
+            WriteLine(res19.status.Detail);
+            WriteLine(res19.response.TxId);
+            WriteLine(res19.response.TxHash);
+            WriteLine(res19.response.Db);
+
+
             var res7 = await client.VerifiedSet("balance", "100");
             WriteLine(res7.status.StatusCode);
             WriteLine(res7.status.Detail);
