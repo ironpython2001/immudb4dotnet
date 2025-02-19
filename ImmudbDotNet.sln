@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImmudbDotNet", "ImmudbDotNe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImmuDbClientDemoApp", "ImmuDbClientDemoApp\ImmuDbClientDemoApp.csproj", "{8B25B692-1BC1-4540-8FD5-CCFF0E26BD4D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImmuDbDotnetLib", "ImmuDbDotnetLib\ImmuDbDotnetLib.csproj", "{D8BD7687-AACE-4EB5-8904-E1B9B807A9CF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImmuDbDotnetLib", "ImmuDbDotnetLib\ImmuDbDotnetLib.csproj", "{D8BD7687-AACE-4EB5-8904-E1B9B807A9CF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -11,9 +11,17 @@ using FluentValidation;
 using Google.Protobuf;
 using Grpc.Core;
 using ImmuDbDotnetLib.Extensions;
+using ImmuDbDotnetLib.MiscUtil;
 using ImmuDbDotnetLib.Validators;
 using Newtonsoft.Json;
 using Empty = Google.Protobuf.WellKnownTypes.Empty;
+
+using IronPython.Hosting;
+using IronPython.Runtime;
+using IronPython;
+using Microsoft.Scripting.Hosting;
+using Microsoft.Scripting;
+using System.Reflection;
 
 namespace ImmuDbDotnetLib
 {
@@ -306,7 +314,7 @@ namespace ImmuDbDotnetLib
                 request.SetRequest.KVs.Add(kv);
                 using var cts = new CancellationTokenSource();
                 var rpcResponse = await this.client.VerifiableSetAsync(request, mdh, null, cts.Token);
-                
+
                 result.status = new Pocos.RpcStatus
                 {
                     StatusCode = Pocos.StatusCode.OK,
@@ -394,7 +402,7 @@ namespace ImmuDbDotnetLib
                 };
                 using var cts = new CancellationTokenSource();
                 var rpcResponse = await this.client.HistoryAsync(rpcRequest, this.AuthHeader, null, cts.Token);
-                    
+
                 result.status = new Pocos.RpcStatus()
                 {
                     StatusCode = Pocos.StatusCode.OK,
@@ -638,18 +646,44 @@ namespace ImmuDbDotnetLib
                 };
                 result.response = new Pocos.CurrentStateResponse();
                 result.response.TxId = rpcResponse.TxId;
-                var ba = rpcResponse.TxHash.ToByteArray().SHAHash();
-                //var s1 = Encoding.UTF8.GetString(ba);
-                //var content = Content.Parser.ParseFrom(ba);
-                //var bas = content.Payload.ToStringUtf8();
-                var bas = string.Empty;
-                foreach (var item in rpcResponse.TxHash.ToList())
-                {
-                    bas = bas + item + " ";
-                }
-                var s = Encoding.UTF8.GetString(ba);
-                result.response.TxHash = s;
-                result.response.Db= rpcResponse.Db;
+
+                
+                var txid = rpcResponse.TxId;
+                var db = rpcResponse.Db;
+                var txHash = rpcResponse.TxHash.ToByteArray();
+                var signature = rpcResponse.Signature.ToByteArray();
+
+                //Sign
+                dynamic hash = this.getHash(txid, txHash, db);
+
+
+                //var publicKey = rpcResponse?.Signature?.PublicKey;
+                //var signatur = rpcResponse?.Signature?.Signature_;
+
+                //var hashByteArray = rpcResponse.TxHash.ToByteArray();
+                //var lenc = new LittleEndianBitConverter();
+                //var bytes = new List<byte[]>(new[] { lenc.GetBytes(hashByteArray.LongLength), hashByteArray });
+                //var msg = new byte[bytes.Sum(barray => barray.LongLength)];
+                //int offset = 0;
+                //foreach (var bArray in bytes)
+                //{
+                //    Buffer.BlockCopy(bArray, 0, msg, offset, bArray.Length);
+                //    offset = bArray.Length;
+                //}
+                //Console.WriteLine(BitConverter.ToString(msg).Replace("-", " "));
+
+                //var ba = rpcResponse.TxHash.ToByteArray().SHAHash();
+                ////var s1 = Encoding.UTF8.GetString(ba);
+                ////var content = Content.Parser.ParseFrom(ba);
+                ////var bas = content.Payload.ToStringUtf8();
+                //var bas = string.Empty;
+                //foreach (var item in rpcResponse.TxHash.ToList())
+                //{
+                //    bas = bas + item + " ";
+                //}
+                //var s = Encoding.UTF8.GetString(ba);
+                //result.response.TxHash = ;
+                result.response.Db = rpcResponse.Db;
             }
             catch (RpcException ex)
             {
@@ -707,6 +741,40 @@ namespace ImmuDbDotnetLib
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
+
+        private dynamic getHash(ulong TxId, byte[] TxHash, string db)
+        {
+            var scriptLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            ScriptEngine engine = Python.CreateEngine();
+            var pySource = engine.CreateScriptSourceFromFile(Path.Combine(scriptLocation, "CalculateHash.py"));
+            ScriptScope scope = engine.CreateScope();
+            pySource.Execute(scope);
+            var classState = scope.GetVariable("State");
+            var stateInstance = engine.Runtime.Operations.CreateInstance(classState);
+            var result = stateInstance.Hash(db, TxId);
+            result = result + TxHash;
+            return result.ToString();
+        }
+
+
+        //https://stackoverflow.com/questions/19337056/struct-pack-equivalent-in-c-sharp
+        //https://www.fergonez.net/post/shellcode-csharp
+        //https://stackoverflow.com/questions/6269765/what-does-the-b-character-do-in-front-of-a-string-literal
+        private void getHash1(ulong TxId, byte[] TxHash, string db)
+        {
+            var hashByteArray = TxHash;
+            var lenc = new LittleEndianBitConverter();
+            var bytes = new List<byte[]>(new[] { lenc.GetBytes(hashByteArray.LongLength), hashByteArray });
+            var msg = new byte[bytes.Sum(barray => barray.LongLength)];
+            int offset = 0;
+            foreach (var bArray in bytes)
+            {
+                Buffer.BlockCopy(bArray, 0, msg, offset, bArray.Length);
+                offset = bArray.Length;
+            }
+            Console.WriteLine(BitConverter.ToString(msg).Replace("-", " "));
+        }
+
 
         //public async Task<List<(ulong Tx, string Key, string Value)>> GetAll(List<string> keys)
         //{

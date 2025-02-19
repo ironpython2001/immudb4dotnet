@@ -19,5 +19,6 @@ namespace ImmuDbDotnetLib.Pocos
             get;
             internal set;
         }
+       
     }
 }
